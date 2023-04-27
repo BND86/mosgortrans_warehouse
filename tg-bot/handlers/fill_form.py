@@ -1,23 +1,18 @@
-import os
 import re
-import logging
-from dotenv import load_dotenv, find_dotenv
-from aiogram import Bot, Dispatcher, types, executor
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from aiogram.dispatcher import filters
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher import FSMContext, filters
+from aiogram import types, Dispatcher
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from tgbot.create_bot import dp
 
 
-logging.basicConfig(level=logging.INFO)
-
-load_dotenv(find_dotenv()) # берём токен из переменной окружения
-
-bot = Bot(os.getenv('TOKEN'))
-storage = MemoryStorage()
-dp = Dispatcher(bot, storage=storage)
-
+class Form(StatesGroup):
+    name = State()      # Состояние для запроса имени
+    surname = State()   # Состояние для запроса фамилии
+    patronymic = State() # Состояние для запроса отчества
+    email = State() # Состояние для запроса почты
+    description = State() # Состояние для запроса описания
+    photo = State()
 
 # Проверка валидности почты
 regex = re.compile(r'([A-Za-z0-9]+[.-_])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\.[A-Z|a-z]{2,})+')
@@ -27,27 +22,8 @@ def isValid(email):
     return False
 
 
-# Определяем состояния
-class Form(StatesGroup):
-    name = State()      # Состояние для запроса имени
-    surname = State()   # Состояние для запроса фамилии
-    patronymic = State() # Состояние для запроса отчества
-    email = State() # Состояние для запроса почты
-    description = State() # Состояние для запроса описания
-    photo = State()
-
-#start и help
-@dp.message_handler(commands=['start'])
-async def get_started(message: types.Message):
-    await message.answer('Вас приветствует Бот Мосгортранс')
-    await message.delete()
-
-@dp.message_handler(commands=['help'])
-async def get_started(message: types.Message):
-    await message.answer('Упс. Тут пока пусто')
-
 # Начинаем заполнение формы
-@dp.message_handler(commands=['form'])
+#@dp.message_handler(commands=['form'])
 async def insert_form_phone_1(message: types.Message):
     # Создаем временную кнопку для отправки номера
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -56,7 +32,7 @@ async def insert_form_phone_1(message: types.Message):
                          reply_markup=kb)
     await message.delete()           
 
-@dp.message_handler(filters.IsSenderContact(True), content_types='contact')
+#@dp.message_handler(filters.IsSenderContact(True), content_types='contact')
 async def insert_form_phone_2(message: types.Message):
     # Удаляем временную кнопку
     await message.answer('Номер принят', reply_markup=ReplyKeyboardRemove())
@@ -65,7 +41,7 @@ async def insert_form_phone_2(message: types.Message):
     await Form.name.set()
 
 # Хэндлер на текстовое сообщение
-@dp.message_handler(state=Form.name)
+#@dp.message_handler(state=Form.name)
 async def process_name(message: types.Message, state: FSMContext):
     # Сохраняем имя в контексте
     async with state.proxy() as data:
@@ -75,10 +51,10 @@ async def process_name(message: types.Message, state: FSMContext):
     # Переходим в состояние "surname"
     await Form.surname.set()
 
-# Хэндлер на текстовое сообщение
-@dp.message_handler(state=Form.surname)
+#Хэндлер на текстовое сообщение
+#@dp.message_handler(state=Form.surname)
 async def process_surname(message: types.Message, state: FSMContext):
-    # Сохраняем фамилию в контексте
+    #Сохраняем фамилию в контексте
     async with state.proxy() as data:
         data['surname'] = message.text
     # Запрашиваем отчество
@@ -87,7 +63,7 @@ async def process_surname(message: types.Message, state: FSMContext):
     await Form.patronymic.set()
 
 # Хэндлер на текстовое сообщение
-@dp.message_handler(state=Form.patronymic)
+#@dp.message_handler(state=Form.patronymic)
 async def process_patronymic(message: types.Message, state: FSMContext):
     # Сохраняем отчество в контексте
     async with state.proxy() as data:
@@ -98,8 +74,7 @@ async def process_patronymic(message: types.Message, state: FSMContext):
     await Form.email.set()
     await message.answer('Введите ваш адрес электронной почты')
 
-
-@dp.message_handler(lambda msg: isValid(msg.text) == True, state=Form.email)
+#@dp.message_handler(lambda msg: isValid(msg.text) == True, state=Form.email)
 async def insert_form_email(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['email'] = message.text
@@ -113,12 +88,11 @@ async def insert_form_description(message: types.Message, state: FSMContext):
     await message.answer('Вы также можете отправить фото')
     await Form.photo.set()
 
-
 #--------------------------------------------------------------
 # ЧАСТИТЧНО РАБОТАЕТ
 
-@dp.message_handler(state=Form.photo)
-async def process_photo_command(message: types.Message, state: FSMContext):
+#@dp.message_handler(state=Form.photo)
+async def process_photo(message: types.Message, state: FSMContext):
     # Получаем объект фотографии
     photo = message.photo[-1]
     # Сохраняем фотографию в файл
@@ -130,6 +104,12 @@ async def process_photo_command(message: types.Message, state: FSMContext):
 
 #---------------------------------------------------------------
 
-if __name__ == '__main__':
-    # Запускаем бота
-    executor.start_polling(dp, skip_updates=True)
+def register_handlers_fill_form(dp: Dispatcher):
+    dp.register_message_handler(insert_form_phone_1, commands=['form'])
+    dp.register_message_handler(insert_form_phone_2, filters.IsSenderContact(True), content_types='contact')
+    dp.register_message_handler(process_name, state=Form.name)
+    dp.register_message_handler(process_surname, state=Form.surname)
+    dp.register_message_handler(process_patronymic, state=Form.patronymic)
+    dp.register_message_handler(insert_form_email, lambda msg: isValid(msg.text) == True, state=Form.email)
+    dp.register_message_handler(insert_form_description, state=Form.description)
+    dp.register_message_handler(process_photo, state=Form.photo)
