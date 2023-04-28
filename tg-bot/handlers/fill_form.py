@@ -21,6 +21,11 @@ def isValid(email):
         return True
     return False
 
+regexfio = re.compile(r'[А-ЯЁ]{1}[а-яё]+')
+def ValidFio(fio):
+    if re.fullmatch(regexfio, fio):
+        return True
+    return False
 
 # Начинаем заполнение формы
 #@dp.message_handler(commands=['form'])
@@ -107,9 +112,9 @@ async def process_photo(message: types.Message, state: FSMContext):
 def register_handlers_fill_form(dp: Dispatcher):
     dp.register_message_handler(insert_form_phone_1, commands=['form'])
     dp.register_message_handler(insert_form_phone_2, filters.IsSenderContact(True), content_types='contact')
-    dp.register_message_handler(process_name, state=Form.name)
-    dp.register_message_handler(process_surname, state=Form.surname)
-    dp.register_message_handler(process_patronymic, state=Form.patronymic)
+    dp.register_message_handler(process_name, lambda msg: ValidFio(msg.text) == True, state=Form.name)
+    dp.register_message_handler(process_surname, lambda msg: ValidFio(msg.text) == True, state=Form.surname)
+    dp.register_message_handler(process_patronymic, lambda msg: ValidFio(msg.text) == True, state=Form.patronymic)
     dp.register_message_handler(insert_form_email, lambda msg: isValid(msg.text) == True, state=Form.email)
     dp.register_message_handler(insert_form_description, state=Form.description)
     dp.register_message_handler(process_photo, state=Form.photo)
