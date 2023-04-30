@@ -7,7 +7,7 @@ from handlers import fill_form, start_help
 logging.basicConfig(level=logging.INFO)
 
 fill_form.register_handlers_fill_form(dp)
-start_help.register_handlers_fill_form(dp)
+start_help.register_handlers_star_help(dp)
 
 if __name__ == '__main__':
     # Запускаем бота

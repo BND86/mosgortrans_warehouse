@@ -7,6 +7,7 @@ from tgbot.create_bot import dp
 
 
 class Form(StatesGroup):
+    phone = State()
     name = State()      # Состояние для запроса имени
     surname = State()   # Состояние для запроса фамилии
     patronymic = State() # Состояние для запроса отчества
@@ -28,25 +29,24 @@ def ValidFio(fio):
     return False
 
 # Начинаем заполнение формы
-#@dp.message_handler(commands=['form'])
-async def insert_form_phone_1(message: types.Message):
+async def insert_form_phone_1(message: types.Message, state: FSMContext):
     # Создаем временную кнопку для отправки номера
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add(KeyboardButton(text="Отправить номер", request_contact=True))
     await message.answer(text='Отправьте мне свой номер',
                          reply_markup=kb)
-    await message.delete()           
+    await message.delete()
+    await state.set_state(Form.phone)
 
-#@dp.message_handler(filters.IsSenderContact(True), content_types='contact')
-async def insert_form_phone_2(message: types.Message):
+async def insert_form_phone_2(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['phone'] = message.contact['phone_number']
     # Удаляем временную кнопку
     await message.answer('Номер принят', reply_markup=ReplyKeyboardRemove())
     await message.answer('Введите ваше имя')
     # Переходим в состояние "name"
     await Form.name.set()
 
-# Хэндлер на текстовое сообщение
-#@dp.message_handler(state=Form.name)
 async def process_name(message: types.Message, state: FSMContext):
     # Сохраняем имя в контексте
     async with state.proxy() as data:
@@ -56,8 +56,6 @@ async def process_name(message: types.Message, state: FSMContext):
     # Переходим в состояние "surname"
     await Form.surname.set()
 
-#Хэндлер на текстовое сообщение
-#@dp.message_handler(state=Form.surname)
 async def process_surname(message: types.Message, state: FSMContext):
     #Сохраняем фамилию в контексте
     async with state.proxy() as data:
@@ -67,54 +65,55 @@ async def process_surname(message: types.Message, state: FSMContext):
     # Переходим в состояние "patronymic"
     await Form.patronymic.set()
 
-# Хэндлер на текстовое сообщение
-#@dp.message_handler(state=Form.patronymic)
 async def process_patronymic(message: types.Message, state: FSMContext):
     # Сохраняем отчество в контексте
     async with state.proxy() as data:
         data['patronymic'] = message.text
-        # Выводим ФИО
-        await message.answer("Ваше ФИО: {} {} {}".format(data['surname'], data['name'], data['patronymic']))
     # Завершаем состояние
     await Form.email.set()
     await message.answer('Введите ваш адрес электронной почты')
 
-#@dp.message_handler(lambda msg: isValid(msg.text) == True, state=Form.email)
 async def insert_form_email(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['email'] = message.text
     await Form.description.set()
     await message.answer('Добавьте краткое описание утерянной вещи')
 
-@dp.message_handler(state=Form.description)
 async def insert_form_description(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['description'] = message.text
-    await message.answer('Вы также можете отправить фото')
-    await Form.photo.set()
+        await message.answer('Ваша заявка сформирована.\n''ПОЖАЛУЙСТА, ПРОВЕРЬТЕ ПРАВИЛЬНОСТЬ ДАННЫХ!\n'
+                             'При необходимости выберите данные для изменения.\n'
+                             'Если данные верны - нажмите кнопку "Отправить заявку"\n\n'
+                             f"ФИО: {data['surname']} {data['name']} {data['patronymic']}\n\n"
+                             f"Электронная почта: {data['email']}\n\n"
+                             f"Телефон: {data['phone']}\n\n"
+                             f"Утерянная вещь:\n{data['description']}")
+    user_data = await state.get_data()
+    print(user_data)
+    await state.finish()
+    #await message.answer('Вы также можете отправить фото')
+    #await Form.photo.set()
 
 #--------------------------------------------------------------
 # ЧАСТИТЧНО РАБОТАЕТ
 
 #@dp.message_handler(state=Form.photo)
-async def process_photo(message: types.Message, state: FSMContext):
-    # Получаем объект фотографии
-    photo = message.photo[-1]
-    # Сохраняем фотографию в файл
-    photo_file = await photo.download(destination='media')
-    # Отправляем фотографию пользователю
-    await message.answer_photo(photo=open(photo_file, 'rb'))
-    # Сбрасываем состояние FSM
-    await state.finish()
+# async def process_photo(message: types.Message, state: FSMContext):
+#     photo = message.photo[-1]
+#     photo_file = await photo.download(destination='media')
+#     await message.answer_photo(photo=open(photo_file, 'rb'))
+#     await state.finish()
 
 #---------------------------------------------------------------
 
+
 def register_handlers_fill_form(dp: Dispatcher):
     dp.register_message_handler(insert_form_phone_1, commands=['form'])
-    dp.register_message_handler(insert_form_phone_2, filters.IsSenderContact(True), content_types='contact')
+    dp.register_message_handler(insert_form_phone_2, filters.IsSenderContact(True), content_types='contact', state = Form.phone)
     dp.register_message_handler(process_name, lambda msg: ValidFio(msg.text) == True, state=Form.name)
     dp.register_message_handler(process_surname, lambda msg: ValidFio(msg.text) == True, state=Form.surname)
     dp.register_message_handler(process_patronymic, lambda msg: ValidFio(msg.text) == True, state=Form.patronymic)
     dp.register_message_handler(insert_form_email, lambda msg: isValid(msg.text) == True, state=Form.email)
     dp.register_message_handler(insert_form_description, state=Form.description)
-    dp.register_message_handler(process_photo, state=Form.photo)
+    #dp.register_message_handler(process_photo, state=Form.photo)

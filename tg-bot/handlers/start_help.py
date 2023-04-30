@@ -10,7 +10,7 @@ async def get_started(message: types.Message):
 async def get_help(message: types.Message):
     await message.answer('Упс. Тут пока пусто')
 
-def register_handlers_fill_form(dp: Dispatcher):
+def register_handlers_star_help(dp: Dispatcher):
     dp.register_message_handler(get_started, commands=['start'])
     dp.register_message_handler(get_help, commands=['help'])
     
