@@ -82,6 +82,11 @@ async def insert_form_email(message: types.Message, state: FSMContext):
 async def insert_form_description(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['description'] = message.text
+    await message.answer('Вы также можете отправить фото')
+    await Form.photo.set()
+
+async def process_photo(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
         await message.answer('Ваша заявка сформирована.\n''ПОЖАЛУЙСТА, ПРОВЕРЬТЕ ПРАВИЛЬНОСТЬ ДАННЫХ!\n'
                              'При необходимости выберите данные для изменения.\n'
                              'Если данные верны - нажмите кнопку "Отправить заявку"\n\n'
@@ -91,21 +96,9 @@ async def insert_form_description(message: types.Message, state: FSMContext):
                              f"Утерянная вещь:\n{data['description']}")
     user_data = await state.get_data()
     print(user_data)
+    await message.photo[-1].download(destination_dir="tgbot")
+    await message.answer_photo(message.photo[-1].file_id)
     await state.finish()
-    #await message.answer('Вы также можете отправить фото')
-    #await Form.photo.set()
-
-#--------------------------------------------------------------
-# ЧАСТИТЧНО РАБОТАЕТ
-
-#@dp.message_handler(state=Form.photo)
-# async def process_photo(message: types.Message, state: FSMContext):
-#     photo = message.photo[-1]
-#     photo_file = await photo.download(destination='media')
-#     await message.answer_photo(photo=open(photo_file, 'rb'))
-#     await state.finish()
-
-#---------------------------------------------------------------
 
 
 def register_handlers_fill_form(dp: Dispatcher):
@@ -116,4 +109,4 @@ def register_handlers_fill_form(dp: Dispatcher):
     dp.register_message_handler(process_patronymic, lambda msg: ValidFio(msg.text) == True, state=Form.patronymic)
     dp.register_message_handler(insert_form_email, lambda msg: isValid(msg.text) == True, state=Form.email)
     dp.register_message_handler(insert_form_description, state=Form.description)
-    #dp.register_message_handler(process_photo, state=Form.photo)
+    dp.register_message_handler(process_photo, content_types=[types.ContentType.PHOTO], state=Form.photo)
