@@ -2,7 +2,8 @@ import re
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.dispatcher import FSMContext, filters
 from aiogram import types, Dispatcher
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, CallbackQuery
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from tgbot.create_bot import dp
 
 
@@ -28,13 +29,29 @@ def ValidFio(fio):
         return True
     return False
 
+
+
+
+
+kb_cancel = InlineKeyboardMarkup()
+cancel_button = InlineKeyboardButton(text='Отмена', callback_data='cancel')
+kb_cancel.add(cancel_button)
+
+async def cancel_handler(callback: CallbackQuery, state: FSMContext):
+    await state.finish() # очищаем все состояния
+    await callback.message.answer(text='Отменено') # отправляем ответ пользователю
+    await callback.message.delete_reply_markup() # удаляем клавиатуру
+    user_data = await state.get_data()
+    print(user_data)
+
+
+
+
 # Начинаем заполнение формы
 async def insert_form_phone_1(message: types.Message, state: FSMContext):
-    # Создаем временную кнопку для отправки номера
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add(KeyboardButton(text="Отправить номер", request_contact=True))
-    await message.answer(text='Отправьте мне свой номер',
-                         reply_markup=kb)
+    await message.answer(text='Отправьте мне свой номер', reply_markup=kb)
     await message.delete()
     await state.set_state(Form.phone)
 
@@ -43,7 +60,7 @@ async def insert_form_phone_2(message: types.Message, state: FSMContext):
         data['phone'] = message.contact['phone_number']
     # Удаляем временную кнопку
     await message.answer('Номер принят', reply_markup=ReplyKeyboardRemove())
-    await message.answer('Введите ваше имя')
+    await message.answer('Введите ваше имя', reply_markup = kb_cancel)
     # Переходим в состояние "name"
     await Form.name.set()
 
@@ -52,7 +69,7 @@ async def process_name(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['name'] = message.text
     # Запрашиваем фамилию
-    await message.answer("Введите вашу фамилию")
+    await message.answer("Введите вашу фамилию", reply_markup = kb_cancel)
     # Переходим в состояние "surname"
     await Form.surname.set()
 
@@ -61,7 +78,7 @@ async def process_surname(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['surname'] = message.text
     # Запрашиваем отчество
-    await message.answer("Введите ваше отчество")
+    await message.answer("Введите ваше отчество", reply_markup = kb_cancel)
     # Переходим в состояние "patronymic"
     await Form.patronymic.set()
 
@@ -71,18 +88,18 @@ async def process_patronymic(message: types.Message, state: FSMContext):
         data['patronymic'] = message.text
     # Завершаем состояние
     await Form.email.set()
-    await message.answer('Введите ваш адрес электронной почты')
+    await message.answer('Введите ваш адрес электронной почты', reply_markup = kb_cancel)
 
 async def insert_form_email(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['email'] = message.text
     await Form.description.set()
-    await message.answer('Добавьте краткое описание утерянной вещи')
+    await message.answer('Добавьте краткое описание утерянной вещи', reply_markup = kb_cancel)
 
 async def insert_form_description(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['description'] = message.text
-    await message.answer('Вы также можете отправить фото')
+    await message.answer('Вы также можете отправить фото', reply_markup = kb_cancel)
     await Form.photo.set()
 
 async def process_photo(message: types.Message, state: FSMContext):
@@ -110,3 +127,4 @@ def register_handlers_fill_form(dp: Dispatcher):
     dp.register_message_handler(insert_form_email, lambda msg: isValid(msg.text) == True, state=Form.email)
     dp.register_message_handler(insert_form_description, state=Form.description)
     dp.register_message_handler(process_photo, content_types=[types.ContentType.PHOTO], state=Form.photo)
+    dp.register_callback_query_handler(cancel_handler, state='*')
