@@ -13,6 +13,9 @@ class Form(StatesGroup):
     surname = State()   # Состояние для запроса фамилии
     patronymic = State() # Состояние для запроса отчества
     email = State() # Состояние для запроса почты
+    short_desc = State()
+    date = State()
+    bus = State()
     description = State() # Состояние для запроса описания
     result = State()
 
@@ -29,6 +32,11 @@ def ValidFio(fio):
         return True
     return False
 
+regexdate = re.compile(r'(0[1-9]|[12][0-9]|3[01])[- /.](0[1-9]|1[012])[- /.](19|20)\d\d')
+def Valid_date(date):
+    if re.fullmatch(regexdate, date):
+        return True
+    return False
 
 
 
@@ -94,10 +102,31 @@ async def insert_form_email(message: types.Message, state: FSMContext):
     if isValid(message.text) == True:
         async with state.proxy() as data:
             data['email'] = message.text
-        await Form.description.set()
-        await message.answer('Добавьте краткое описание утерянной вещи', reply_markup = kb_cancel)
+        await Form.date.set()
+        await message.answer('Укажите дату утери в формате ДД-ММ-ГГГГ', reply_markup = kb_cancel)
     else:
         await message.answer("Вы ввели некоректный адрес электронной почты")
+
+async def insert_form_date(message: types.Message, state: FSMContext):
+    if Valid_date(message.text) == True:
+        async with state.proxy() as data:
+            data['date'] = message.text
+        await Form.bus.set()
+        await message.answer('Введите номер марштрута', reply_markup = kb_cancel)
+    else:
+        await message.answer("Вы ввели некорекную дату")
+
+async def insert_form_bus_number(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['bus'] = message.text
+    await Form.short_desc.set()
+    await message.answer('Введите название утерянной вещи', reply_markup = kb_cancel)
+
+async def insert_form_short_desc(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['lost_thing'] = message.text
+    await message.answer('Добавьте описание утерянной вещи', reply_markup = kb_cancel)
+    await Form.description.set()
 
 async def insert_form_description(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
@@ -115,7 +144,9 @@ async def result(message: types.Message, state: FSMContext):
                              f"ФИО: {data['surname']} {data['name']} {data['patronymic']}\n\n"
                              f"Электронная почта: {data['email']}\n\n"
                              f"Телефон: {data['phone']}\n\n"
-                             f"Утерянная вещь:\n{data['description']}", reply_markup=ReplyKeyboardRemove())
+                             f"Дата утери: {data['date']}\n\n"
+                             f"Номер маршрута: {data['bus']}\n\n"
+                             f"Утерянная вещь:\n{data['lost_thing']}\n{data['description']}", reply_markup=ReplyKeyboardRemove())
     user_data = await state.get_data()
     print(user_data)
     if message.photo:
@@ -131,6 +162,10 @@ def register_handlers_fill_form(dp: Dispatcher):
     dp.register_message_handler(process_surname, state=Form.surname)
     dp.register_message_handler(process_patronymic, state=Form.patronymic)
     dp.register_message_handler(insert_form_email, state=Form.email)
+    dp.register_message_handler(insert_form_date, state=Form.date)
+    dp.register_message_handler(insert_form_bus_number, state=Form.bus)
+    dp.register_message_handler(insert_form_short_desc, state=Form.short_desc)
     dp.register_message_handler(insert_form_description, state=Form.description)
     dp.register_message_handler(result, content_types=['photo', 'text'], state=Form.result)
     dp.register_callback_query_handler(cancel_handler, state='*')
+    
