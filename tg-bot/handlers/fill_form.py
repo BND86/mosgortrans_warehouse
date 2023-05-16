@@ -4,7 +4,8 @@ from aiogram.dispatcher import FSMContext, filters
 from aiogram import types, Dispatcher
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, CallbackQuery
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from tgbot.create_bot import dp
+from tgbot.create_bot import bot
+from pg_connect import connection, cursor, write_photo
 
 
 class Form(StatesGroup):
@@ -18,6 +19,7 @@ class Form(StatesGroup):
     bus = State()
     description = State() # Состояние для запроса описания
     result = State()
+    send_to_db = State()
 
 # Проверка валидности почты
 regex = re.compile(r'([A-Za-z0-9]+[.-_])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\.[A-Z|a-z]{2,})+')
@@ -38,8 +40,8 @@ def Valid_date(date):
         return True
     return False
 
-
-
+photo_path = ''
+photo_flag = False
 
 kb_cancel = InlineKeyboardMarkup()
 cancel_button = InlineKeyboardButton(text='Отмена', callback_data='cancel')
@@ -49,8 +51,6 @@ async def cancel_handler(callback: CallbackQuery, state: FSMContext):
     await state.finish() # очищаем все состояния
     await callback.message.answer(text='Отменено') # отправляем ответ пользователю
     await callback.message.delete_reply_markup() # удаляем клавиатуру
-    user_data = await state.get_data()
-    print(user_data)
 
 
 
@@ -137,6 +137,7 @@ async def insert_form_description(message: types.Message, state: FSMContext):
     await Form.result.set()
 
 async def result(message: types.Message, state: FSMContext):
+    global photo_path, photo_flag
     async with state.proxy() as data:
         await message.answer('Ваша заявка сформирована.\n''ПОЖАЛУЙСТА, ПРОВЕРЬТЕ ПРАВИЛЬНОСТЬ ДАННЫХ!\n'
                              'При необходимости выберите данные для изменения.\n'
@@ -147,13 +148,38 @@ async def result(message: types.Message, state: FSMContext):
                              f"Дата утери: {data['date']}\n\n"
                              f"Номер маршрута: {data['bus']}\n\n"
                              f"Утерянная вещь:\n{data['lost_thing']}\n{data['description']}", reply_markup=ReplyKeyboardRemove())
-    user_data = await state.get_data()
-    print(user_data)
     if message.photo:
         await message.photo[-1].download(destination_dir="tgbot")
         await message.answer_photo(message.photo[-1].file_id)
-    await state.finish()
+        file_info = await bot.get_file(message.photo[-1].file_id)
+        print(file_info)
+        photo_path = 'C:/Programming/Poteryashki/mosgortrans_warehouse/tg-bot/tgbot/' + file_info.file_path
+        photo_flag = True
+    await message.answer('подтвердите (ОК)')
+    await Form.send_to_db.set()
 
+async def data_db(message: types.Message, state: FSMContext):
+    global photo_path, photo_flag
+    user_data = await state.get_data()
+    print(user_data)
+    await state.finish()
+    cursor.execute(f"""INSERT INTO requests(item_description, comment_, date_time_of_loss, bus_route, email, phone, name_, fam, surname)
+	VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s);""",
+    [user_data['lost_thing'],
+    user_data['description'],
+    user_data['date'],
+    user_data['bus'],
+    user_data['email'],
+    user_data['phone'],
+    user_data['name'],
+    user_data['surname'],
+    user_data['patronymic']])
+    connection.commit()
+    if photo_flag:
+        cursor.execute("SELECT max(individual_number) FROM requests;")
+        write_photo(cursor.fetchone(), photo_path)
+    connection.close()
+    await message.answer('Оправлено)')
 
 def register_handlers_fill_form(dp: Dispatcher):
     dp.register_message_handler(insert_form_phone_1, commands=['form'])
@@ -166,6 +192,6 @@ def register_handlers_fill_form(dp: Dispatcher):
     dp.register_message_handler(insert_form_bus_number, state=Form.bus)
     dp.register_message_handler(insert_form_short_desc, state=Form.short_desc)
     dp.register_message_handler(insert_form_description, state=Form.description)
+    dp.register_message_handler(data_db, text = 'ОК', state=Form.send_to_db)
     dp.register_message_handler(result, content_types=['photo', 'text'], state=Form.result)
     dp.register_callback_query_handler(cancel_handler, state='*')
-    
