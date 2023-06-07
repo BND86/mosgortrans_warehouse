@@ -48,8 +48,10 @@ def Valid_date(info):
             try:
                 info_date = datetime.strptime(info, '%d.%m.%Y').date()
             except ValueError:
-                info_date = datetime.strptime(info, '%d %m %Y').date()
-
+                try:
+                    info_date = datetime.strptime(info, '%d %m %Y').date()
+                except ValueError:
+                    return False
     if re.fullmatch(regexdate, info) and info_date <= curr_date:
         return True
     return False
@@ -65,6 +67,14 @@ async def cancel_handler(callback: CallbackQuery, state: FSMContext):
     await state.finish() # очищаем все состояния
     await callback.message.answer(text='Отменено') # отправляем ответ пользователю
     await callback.message.delete_reply_markup() # удаляем клавиатуру
+
+async def nopatr_handler(callback: CallbackQuery, state: FSMContext):
+    async with state.proxy() as data:
+            data['patronymic'] = '-'
+    await Form.email.set()
+    await callback.message.delete_reply_markup() # удаляем клавиатуру
+    await callback.message.delete()
+    await callback.message.answer('Введите ваш адрес электронной почты', reply_markup = kb_cancel)
 
 
 
@@ -98,7 +108,11 @@ async def process_surname(message: types.Message, state: FSMContext):
     if ValidFio(message.text) == True:
         async with state.proxy() as data:
             data['surname'] = message.text
-        await message.answer("Введите ваше отчество", reply_markup = kb_cancel)
+        kb_cancel_nopatr = InlineKeyboardMarkup()
+        nopatr_button = InlineKeyboardButton(text='Без отчества', callback_data='nopatr')
+        kb_cancel_nopatr.add(cancel_button)
+        kb_cancel_nopatr.add(nopatr_button)
+        await message.answer("Введите ваше отчество", reply_markup = kb_cancel_nopatr)
         await Form.patronymic.set()
     else:
         await message.answer("Вы ввели некоректную фамилию")
@@ -224,3 +238,4 @@ def register_handlers_fill_form(dp: Dispatcher):
     dp.register_callback_query_handler(data_db, text = 'Отправить заявку', state=Form.send_to_db)
     dp.register_message_handler(result, content_types=['photo', 'text'], state=Form.result)
     dp.register_callback_query_handler(cancel_handler, text = 'cancel', state='*')
+    dp.register_callback_query_handler(nopatr_handler, text = 'nopatr', state=Form.patronymic)

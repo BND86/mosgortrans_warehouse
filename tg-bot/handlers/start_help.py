@@ -3,7 +3,8 @@ from tgbot.create_bot import dp
 
 #@dp.message_handler(commands=['start'])
 async def get_started(message: types.Message):
-    await message.answer('Вас приветствует Бот Мосгортранс!\n'
+    await message.answer('Вас приветствует Бот Мосгортранс!\n\n'
+                         'Продолжая работу с ботом вы даёте согласие на обработку персональных данных.\n\n'
                          '/form - заполнить заявку на поиск вещи')
     await message.delete()
 
