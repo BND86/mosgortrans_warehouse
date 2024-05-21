@@ -1,5 +1,5 @@
 import psycopg2
-from tgbot.create_bot import host, user, password, database, port
+from .create_bot import host, user, password, database, port
 
 def write_photo(id, path):
     drawing = open(path, 'rb').read()

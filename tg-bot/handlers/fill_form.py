@@ -5,7 +5,7 @@ from aiogram import types, Dispatcher
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, CallbackQuery
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from tgbot.create_bot import bot
-from pg_connect import connection, write_photo
+# from tgbot.pg_connect import write_photo, connection
 import psycopg2
 from datetime import datetime, date
 
@@ -189,40 +189,40 @@ async def result(message: types.Message, state: FSMContext):
     await message.answer('Если данные верны - нажмите кнопку "Отправить заявку"', reply_markup=send_form)
     await Form.send_to_db.set()
 
-async def data_db(callback: CallbackQuery, state: FSMContext):
-    global photo_path, photo_flag
-    user_data = await state.get_data()
-    print(user_data)
-    await state.finish()
-    try:
-        conn = connection
-        conn.autocommit = True
-        cur = conn.cursor()
-        cur.execute(f"""INSERT INTO requests(item_description, comment_, date_time_of_loss, bus_route, email, phone, name_, fam, surname)
-        VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s);""",
-        [user_data['lost_thing'],
-        user_data['description'],
-        user_data['date'],
-        user_data['bus'],
-        user_data['email'],
-        user_data['phone'],
-        user_data['name'],
-        user_data['surname'],
-        user_data['patronymic']])
-        connection.commit()
-        if photo_flag:
-            cur.execute("SELECT max(individual_number) FROM requests;")
-            write_photo(cur.fetchone(), photo_path)
+# async def data_db(callback: CallbackQuery, state: FSMContext):
+#     global photo_path, photo_flag
+#     user_data = await state.get_data()
+#     print(user_data)
+#     await state.finish()
+#     try:
+#         conn = connection
+#         conn.autocommit = True
+#         cur = conn.cursor()
+#         cur.execute(f"""INSERT INTO requests(item_description, comment_, date_time_of_loss, bus_route, email, phone, name_, fam, surname)
+#         VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s);""",
+#         [user_data['lost_thing'],
+#         user_data['description'],
+#         user_data['date'],
+#         user_data['bus'],
+#         user_data['email'],
+#         user_data['phone'],
+#         user_data['name'],
+#         user_data['surname'],
+#         user_data['patronymic']])
+#         connection.commit()
+#         if photo_flag:
+#             cur.execute("SELECT max(individual_number) FROM requests;")
+#             write_photo(cur.fetchone(), photo_path)
 
-    except psycopg2.InterfaceError as exc:
-        print(exc)
-        conn = connection
-        conn.autocommit = True
-        cur = conn.cursor()
-    except Exception as _ex:
-        print("[INFO] Error while working with PostgreSQL", _ex)
+#     except psycopg2.InterfaceError as exc:
+#         print(exc)
+#         conn = connection
+#         conn.autocommit = True
+#         cur = conn.cursor()
+#     except Exception as _ex:
+#         print("[INFO] Error while working with PostgreSQL", _ex)
 
-    await callback.message.answer('Оправлено)', reply_markup=ReplyKeyboardRemove())
+#     await callback.message.answer('Оправлено)', reply_markup=ReplyKeyboardRemove())
 
 def register_handlers_fill_form(dp: Dispatcher):
     dp.register_message_handler(insert_form_phone_1, commands=['form'])
@@ -235,7 +235,7 @@ def register_handlers_fill_form(dp: Dispatcher):
     dp.register_message_handler(insert_form_bus_number, state=Form.bus)
     dp.register_message_handler(insert_form_short_desc, state=Form.short_desc)
     dp.register_message_handler(insert_form_description, state=Form.description)
-    dp.register_callback_query_handler(data_db, text = 'Отправить заявку', state=Form.send_to_db)
+    # dp.register_callback_query_handler(data_db, text = 'Отправить заявку', state=Form.send_to_db)
     dp.register_message_handler(result, content_types=['photo', 'text'], state=Form.result)
     dp.register_callback_query_handler(cancel_handler, text = 'cancel', state='*')
     dp.register_callback_query_handler(nopatr_handler, text = 'nopatr', state=Form.patronymic)
